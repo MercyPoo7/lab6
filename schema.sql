@@ -134,7 +134,7 @@ SELECT
     fecha_ingreso,
     meses_validez,
     DATE_ADD(fecha_ingreso, INTERVAL meses_validez MONTH) AS vence_el,
-    fn_reloj_arena(fecha_ingreso, moses_validez)          AS estado
+    fn_reloj_arena(fecha_ingreso, meses_validez)          AS estado
 FROM inventario_pirata
 ORDER BY id;
 
@@ -147,4 +147,76 @@ SELECT
 FROM inventario_pirata
 WHERE fn_cernidor(id) = TRUE
   AND fn_reloj_arena(fecha_ingreso, meses_validez) = 'Fresco'
+ORDER BY id;
+
+
+DELIMITER $$
+
+-- Llave 3: fn_espia_tortuga
+CREATE FUNCTION fn_espia_tortuga(p_categoria VARCHAR(100), p_precio_finca DECIMAL(10,2))
+RETURNS DECIMAL(10,2)
+NOT DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_precio_mercado DECIMAL(10,2);
+    DECLARE v_factor          DECIMAL(3,1);
+
+    SELECT precio_referencia INTO v_precio_mercado 
+    FROM mercado_negro 
+    WHERE categoria = p_categoria 
+    LIMIT 1;
+
+    IF v_precio_mercado IS NULL THEN
+        SET v_factor = 1.0; 
+    ELSEIF p_precio_finca > v_precio_mercado THEN
+        SET v_factor = 1.2;
+    ELSE
+        SET v_factor = 0.8;
+    END IF;
+
+    RETURN p_precio_finca * v_factor;
+END $$
+
+-- Llave 4: fn_purificador
+CREATE FUNCTION fn_purificador(p_nombre_sucio VARCHAR(200))
+RETURNS VARCHAR(200)
+DETERMINISTIC
+NO SQL
+BEGIN
+    DECLARE v_limpio VARCHAR(200);
+
+    IF p_nombre_sucio IS NULL THEN
+        RETURN '';
+    END IF;
+
+    SET v_limpio = REGEXP_REPLACE(p_nombre_sucio, '[^a-zA-Z]', '');
+
+    RETURN TRIM(v_limpio);
+END $$
+
+
+DELIMITER ;
+
+-- L3: Validación de precios contra mercado
+SELECT 
+    categoria,
+    precio_finca,
+    (SELECT precio_referencia FROM mercado_negro m WHERE m.categoria = i.categoria) AS precio_ref_mercado,
+    fn_espia_tortuga(categoria, precio_finca) AS precio_con_espia,
+    CASE 
+        WHEN precio_finca > (SELECT precio_referencia FROM mercado_negro m WHERE m.categoria = i.categoria) THEN 'Factor 1.2 (Caro)'
+        WHEN (SELECT precio_referencia FROM mercado_negro m WHERE m.categoria = i.categoria) IS NULL THEN 'Factor 1.0 (N/A)'
+        ELSE 'Factor 0.8 (Barato)'
+    END AS verificacion_logica
+FROM inventario_pirata i
+ORDER BY categoria;
+
+-- L4: Limpieza de nombres sucios
+SELECT 
+    id,
+    nombre_sucio,
+    fn_purificador(nombre_sucio) AS nombre_purificado,
+    LENGTH(nombre_sucio) AS largo_original,
+    LENGTH(fn_purificador(nombre_sucio)) AS largo_limpio
+FROM inventario_pirata
 ORDER BY id;
