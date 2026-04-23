@@ -154,28 +154,30 @@ DELIMITER $$
 
 -- Llave 3: fn_espia_tortuga
 CREATE FUNCTION fn_espia_tortuga(p_categoria VARCHAR(100), p_precio_finca DECIMAL(10,2))
-RETURNS DECIMAL(10,2)
+RETURNS DECIMAL(3,2)
 NOT DETERMINISTIC
 READS SQL DATA
 BEGIN
     DECLARE v_precio_mercado DECIMAL(10,2);
-    DECLARE v_factor          DECIMAL(3,1);
+    DECLARE v_relacion DECIMAL(5,2);
+    DECLARE v_factor DECIMAL(3,2);
 
-    SELECT precio_referencia INTO v_precio_mercado 
-    FROM mercado_negro 
-    WHERE categoria = p_categoria 
+    SELECT 
+        precio_referencia,
+        (p_precio_finca / precio_referencia) AS relacion
+    INTO v_precio_mercado, v_relacion
+    FROM mercado_negro
+    WHERE categoria = p_categoria
     LIMIT 1;
 
-    IF v_precio_mercado IS NULL THEN
-        SET v_factor = 1.0; 
-    ELSEIF p_precio_finca > v_precio_mercado THEN
-        SET v_factor = 1.2;
+    IF v_relacion > 1 THEN
+        SET v_factor = 1.20;
     ELSE
-        SET v_factor = 0.8;
+        SET v_factor = 0.80;
     END IF;
 
     RETURN v_factor;
-END $$
+END;
 
 -- Llave 4: fn_purificador
 CREATE FUNCTION fn_purificador(p_nombre_sucio VARCHAR(200))
@@ -204,7 +206,6 @@ SELECT
     m.precio_referencia AS precio_ref_mercado,
     fn_espia_tortuga(i.categoria, i.precio_finca) AS factor_espia,
     CASE 
-        WHEN m.precio_referencia IS NULL THEN 'Factor 1.0 (N/A)'
         WHEN i.precio_finca > m.precio_referencia THEN 'Factor 1.2 (Caro)'
         ELSE 'Factor 0.8 (Barato)'
     END AS verificacion_logica
