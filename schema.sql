@@ -174,7 +174,7 @@ BEGIN
         SET v_factor = 0.8;
     END IF;
 
-    RETURN p_precio_finca * v_factor;
+    RETURN v_factor;
 END $$
 
 -- Llave 4: fn_purificador
@@ -199,17 +199,19 @@ DELIMITER ;
 
 -- L3: Validación de precios contra mercado
 SELECT 
-    categoria,
-    precio_finca,
-    (SELECT precio_referencia FROM mercado_negro m WHERE m.categoria = i.categoria) AS precio_ref_mercado,
-    fn_espia_tortuga(categoria, precio_finca) AS precio_con_espia,
+    i.categoria,
+    i.precio_finca,
+    m.precio_referencia AS precio_ref_mercado,
+    fn_espia_tortuga(i.categoria, i.precio_finca) AS factor_espia,
     CASE 
-        WHEN precio_finca > (SELECT precio_referencia FROM mercado_negro m WHERE m.categoria = i.categoria) THEN 'Factor 1.2 (Caro)'
-        WHEN (SELECT precio_referencia FROM mercado_negro m WHERE m.categoria = i.categoria) IS NULL THEN 'Factor 1.0 (N/A)'
+        WHEN m.precio_referencia IS NULL THEN 'Factor 1.0 (N/A)'
+        WHEN i.precio_finca > m.precio_referencia THEN 'Factor 1.2 (Caro)'
         ELSE 'Factor 0.8 (Barato)'
     END AS verificacion_logica
 FROM inventario_pirata i
-ORDER BY categoria;
+LEFT JOIN mercado_negro m 
+    ON m.categoria = i.categoria
+ORDER BY i.categoria;
 
 -- L4: Limpieza de nombres sucios
 SELECT 
