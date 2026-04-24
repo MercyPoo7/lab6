@@ -134,7 +134,7 @@ SELECT
     fecha_ingreso,
     meses_validez,
     DATE_ADD(fecha_ingreso, INTERVAL meses_validez MONTH) AS vence_el,
-    fn_reloj_arena(fecha_ingreso, moses_validez)          AS estado
+    fn_reloj_arena(fecha_ingreso, meses_validez)          AS estado
 FROM inventario_pirata
 ORDER BY id;
 
@@ -147,4 +147,79 @@ SELECT
 FROM inventario_pirata
 WHERE fn_cernidor(id) = TRUE
   AND fn_reloj_arena(fecha_ingreso, meses_validez) = 'Fresco'
+ORDER BY id;
+
+
+DELIMITER $$
+
+-- Llave 3: fn_espia_tortuga
+CREATE FUNCTION fn_espia_tortuga(p_categoria VARCHAR(100), p_precio_finca DECIMAL(10,2))
+RETURNS DECIMAL(3,2)
+NOT DETERMINISTIC
+READS SQL DATA
+BEGIN
+    DECLARE v_precio_mercado DECIMAL(10,2);
+    DECLARE v_relacion DECIMAL(5,2);
+    DECLARE v_factor DECIMAL(3,2);
+
+    SELECT 
+        precio_referencia,
+        (p_precio_finca / precio_referencia) AS relacion
+    INTO v_precio_mercado, v_relacion
+    FROM mercado_negro
+    WHERE categoria = p_categoria
+    LIMIT 1;
+
+    IF v_relacion > 1 THEN
+        SET v_factor = 1.20;
+    ELSE
+        SET v_factor = 0.80;
+    END IF;
+
+    RETURN v_factor;
+END;
+
+-- Llave 4: fn_purificador
+CREATE FUNCTION fn_purificador(p_nombre_sucio VARCHAR(200))
+RETURNS VARCHAR(200)
+DETERMINISTIC
+NO SQL
+BEGIN
+    DECLARE v_limpio VARCHAR(200);
+
+    IF p_nombre_sucio IS NULL THEN
+        RETURN '';
+    END IF;
+
+    SET v_limpio = REGEXP_REPLACE(p_nombre_sucio, '[^a-zA-Z]', '');
+
+    RETURN TRIM(v_limpio);
+END $$
+
+
+DELIMITER ;
+
+-- L3: Validación de precios contra mercado
+SELECT 
+    i.categoria,
+    i.precio_finca,
+    m.precio_referencia AS precio_ref_mercado,
+    fn_espia_tortuga(i.categoria, i.precio_finca) AS factor_espia,
+    CASE 
+        WHEN i.precio_finca > m.precio_referencia THEN 'Factor 1.2 (Caro)'
+        ELSE 'Factor 0.8 (Barato)'
+    END AS verificacion_logica
+FROM inventario_pirata i
+LEFT JOIN mercado_negro m 
+    ON m.categoria = i.categoria
+ORDER BY i.categoria;
+
+-- L4: Limpieza de nombres sucios
+SELECT 
+    id,
+    nombre_sucio,
+    fn_purificador(nombre_sucio) AS nombre_purificado,
+    LENGTH(nombre_sucio) AS largo_original,
+    LENGTH(fn_purificador(nombre_sucio)) AS largo_limpio
+FROM inventario_pirata
 ORDER BY id;
