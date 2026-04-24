@@ -177,7 +177,7 @@ BEGIN
     END IF;
 
     RETURN v_factor;
-END;
+END$$
 
 -- Llave 4: fn_purificador
 CREATE FUNCTION fn_purificador(p_nombre_sucio VARCHAR(200))
@@ -194,7 +194,7 @@ BEGIN
     SET v_limpio = REGEXP_REPLACE(p_nombre_sucio, '[^a-zA-Z]', '');
 
     RETURN TRIM(v_limpio);
-END $$
+END$$
 
 
 DELIMITER ;
@@ -223,3 +223,123 @@ SELECT
     LENGTH(fn_purificador(nombre_sucio)) AS largo_limpio
 FROM inventario_pirata
 ORDER BY id;
+
+DELIMITER $$
+
+-- Llave 5
+CREATE FUNCTION fn_escultor(p_nombre TEXT, p_factor DECIMAL(3,2))
+RETURNS TEXT
+DETERMINISTIC
+BEGIN
+    DECLARE v_texto_base TEXT;
+    DECLARE v_resultado  TEXT;
+
+    -- Paso 1: Guardar el texto base
+    SET v_texto_base = p_nombre;
+
+    -- Paso 2 y 3: Evaluar el factor y aplicar transformación
+    IF p_factor > 1.00 THEN
+        SET v_texto_base = UPPER(p_nombre);
+    ELSE
+        SET v_texto_base = LOWER(p_nombre);
+    END IF;
+
+    -- Paso 4: Concatenar sufijo y retornar
+    IF p_factor > 1.00 THEN
+        SET v_resultado = CONCAT(v_texto_base, '_PREMIUM');
+    ELSE
+        SET v_resultado = CONCAT(v_texto_base, '_estandar');
+    END IF;
+
+    RETURN v_resultado;
+END$$
+
+
+-- Llave 06
+DELIMITER $$
+
+CREATE FUNCTION fn_notario(p_texto TEXT)
+RETURNS TEXT
+NOT DETERMINISTIC
+MODIFIES SQL DATA
+BEGIN
+    DECLARE v_usuario   VARCHAR(100);
+    DECLARE v_mensaje   TEXT;
+    DECLARE v_resultado TEXT;
+
+    -- Paso 1: Obtener usuario y timestamp
+    SET v_usuario = CURRENT_USER();
+
+    -- Paso 2: Construir mensaje descriptivo
+    SET v_mensaje = CONCAT('Pipeline procesó el texto: [', p_texto, '] en el timestamp: ', NOW());
+
+    -- Paso 3: Insertar en bitácora
+    INSERT INTO logs_hashy (usuario, mensaje)
+    VALUES (v_usuario, v_mensaje);
+
+    -- Paso 4: Retornar el mismo texto
+    SET v_resultado = p_texto;
+    RETURN v_resultado;
+END$$
+
+-- Llave 7
+DROP FUNCTION IF EXISTS fn_gran_sello;
+
+DELIMITER $$
+
+-- Llave 7
+
+DROP FUNCTION IF EXISTS fn_gran_sello;
+
+DELIMITER $$
+
+-- Llave 7
+CREATE FUNCTION fn_gran_sello(p_texto TEXT)
+RETURNS VARCHAR(255)
+DETERMINISTIC
+BEGIN
+    DECLARE v_texto_entrada TEXT;
+    DECLARE v_hash_bruto    VARCHAR(64);
+    DECLARE v_sello_final   VARCHAR(32);
+
+    -- Paso 1: Asignar texto a variable interna
+    SET v_texto_entrada = p_texto;
+
+    -- Paso 2: Aplicar SHA2 en lugar de MD5
+    SET v_hash_bruto = SHA2(v_texto_entrada, 256);
+
+    -- Paso 3: Garantizar longitud fija de 32
+    SET v_sello_final = LEFT(v_hash_bruto, 32);
+
+    -- Paso 4: Retornar el sello
+    RETURN v_sello_final;
+END$$
+
+DELIMITER ;
+SELECT fn_gran_sello('prueba');
+
+-- ==========================================================
+-- CONSULTA MAESTRA FINAL
+-- ==========================================================
+SELECT
+    GROUP_CONCAT(
+        fn_gran_sello(
+            fn_notario(
+                fn_escultor(
+                    fn_purificador(nombre_sucio),
+                    fn_espia_tortuga(categoria, precio_finca)
+                )
+        )
+        ORDER BY id ASC
+        SEPARATOR ' # '
+    ) AS resultado_final_del_trio
+FROM inventario_pirata
+WHERE
+    fn_cernidor(id) = TRUE
+    AND
+    fn_reloj_arena(fecha_ingreso, meses_validez) = 'Fresco';
+
+-- ==========================================================
+-- VERIFICACIÓN DE BITÁCORA
+-- ==========================================================
+SELECT * FROM logs_hashy ORDER BY fecha_hora DESC;
